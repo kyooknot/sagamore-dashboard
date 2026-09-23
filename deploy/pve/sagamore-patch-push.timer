@@ -1,0 +1,14 @@
+[Unit]
+Description=Push patch-debt report to Sagamore (4x daily)
+
+[Timer]
+# Every 3h. Was 4x/day, which meant the dashboard could show patch debt up to 6 hours
+# stale — long enough that 'pending updates' disagreed with reality after any manual
+# apply. The probe does NOT run apt-get update (see the script), so it is cheap.
+# :20 keeps it off the 08:00 digest's toes for pct exec.
+OnCalendar=*-*-* 00/3:20:00
+Persistent=true
+RandomizedDelaySec=180
+
+[Install]
+WantedBy=timers.target

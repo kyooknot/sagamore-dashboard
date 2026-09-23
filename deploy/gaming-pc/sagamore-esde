@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Report what ES-DE just launched to Sagamore's Now Playing card.
+#
+#   sagamore-esde start <rom-path> <game-name> <system> <system-full>
+#   sagamore-esde stop
+#
+# ES-DE's custom event script contract (game-start) is:
+#   $1 absolute path to the game file   $2 game name
+#   $3 system name (short)              $4 system full name
+# Every invocation logs its raw argv, so if that contract ever changes the log says
+# so instead of the dashboard row quietly going blank.
+#
+# 🚨 THIS MUST NEVER DELAY OR BREAK A GAME LAUNCH. ES-DE waits for the script, so all
+# the slow work (reading art, HTTP) is detached and this returns immediately. Every
+# failure path exits 0: a dashboard row is not worth a game that will not start.
+set -u
+LOG=~/.local/state/sagamore-esde.log
+ENV_FILE=~/.config/sagamore-esde.env
+URL=${SAGAMORE_URL:-http://192.168.1.88:8092}/api/ingest/esde
+MEDIA=${ESDE_MEDIA:-/mnt/frank-media}
+
+mkdir -p "$(dirname "$LOG")"
+say(){ printf '%s %s\n' "$(date -Is)" "$*" >>"$LOG" 2>/dev/null; }
+say "argv: $*"
+
+MODE=${1:-}; shift || true
+
+# The token lives in a mode-600 file and is never echoed or passed on a command line
+# (argv is world-readable in /proc).
+[ -r "$ENV_FILE" ] || { say "no $ENV_FILE - not reporting"; exit 0; }
+TOKEN=$(sed -n 's/^INGEST_TOKEN=//p' "$ENV_FILE" | tr -d '"'"'"'\r\n')
+[ -n "$TOKEN" ] || { say "empty INGEST_TOKEN - not reporting"; exit 0; }
+
+post(){ # stdin = json body
+  curl -sS --max-time 10 -o /dev/null -w '%{http_code}' \
+       -X POST "$URL" \
+       -H "Authorization: Bearer $TOKEN" \
+       -H 'Content-Type: application/json' \
+       --data-binary @- 2>>"$LOG"
+}
+
+if [ "$MODE" = stop ]; then
+  ( c=$(printf '{"state":"stopped"}' | post); say "stop -> HTTP $c" ) >/dev/null 2>&1 &
+  exit 0
+fi
+
+[ "$MODE" = start ] || { say "unknown mode '$MODE'"; exit 0; }
+
+ROM=${1:-}; NAME=${2:-}; SYS=${3:-}; SYSFULL=${4:-}
+# Fall back to the filename when ES-DE passes no gamelist name (an unscraped ROM).
+if [ -z "$NAME" ] && [ -n "$ROM" ]; then NAME=$(basename "$ROM"); NAME=${NAME%.*}; fi
+[ -n "$NAME" ] || { say "no game name and no rom path - not reporting"; exit 0; }
+
+(
+  # ⚠️ Box art is keyed on the ROM FILE BASENAME, not the display name. The gamelist
+  # <image> entries point at ./images/<name>-image.png, and those files DO NOT EXIST
+  # on this machine -- ES-DE resolves art from MediaDirectory instead, as
+  # <media>/<system>/covers/<rom basename>.<ext>. Matching on the display name finds
+  # nothing; matching on the basename finds the file.
+  ART=""; ART_TYPE=""
+  if [ -n "$ROM" ] && [ -n "$SYS" ]; then
+    stem=$(basename "$ROM"); stem=${stem%.*}
+    for ext in png jpg jpeg; do
+      f="$MEDIA/$SYS/covers/$stem.$ext"
+      if [ -f "$f" ]; then
+        # Cap before encoding: Sagamore stores this in SQLite and re-reads it on
+        # every page build. Oversized art is simply omitted -- the name is the point.
+        sz=$(stat -c %s "$f" 2>/dev/null || echo 0)
+        if [ "$sz" -gt 0 ] && [ "$sz" -le 3000000 ]; then
+          # 🚨 Pass the PATH, never the encoded bytes. A single environment variable
+          # or argument is capped at MAX_ARG_STRLEN = 128 KB on Linux, regardless of
+          # total ARG_MAX -- and box art base64s to ~370 KB. Exporting it gave
+          # "Argument list too long" (exit 126), python never ran, curl posted an
+          # EMPTY body, and Sagamore answered 500. Silent for every cover over ~96 KB,
+          # which is most of them. Python opens the file itself instead.
+          ART="$f"
+          case $ext in png) ART_TYPE=image/png;; *) ART_TYPE=image/jpeg;; esac
+          say "art: $f ($sz bytes)"
+        else
+          say "art skipped: $f is $sz bytes"
+        fi
+        break
+      fi
+    done
+    [ -n "$ART" ] || say "no art under $MEDIA/$SYS/covers/$stem.*"
+  fi
+
+  code=$(NAME="$NAME" SYS="$SYS" SYSFULL="$SYSFULL" ARTFILE="$ART" ART_TYPE="$ART_TYPE" \
+    python3 -c '
+import base64,json,os,sys
+art = ""
+path = os.environ.get("ARTFILE","")
+if path:
+    try:
+        with open(path,"rb") as fh:
+            art = base64.b64encode(fh.read()).decode("ascii")
+    except OSError:
+        art = ""          # unreadable art is not a reason to lose the game name
+sys.stdout.write(json.dumps({
+    "state":"playing",
+    "game":os.environ["NAME"],
+    "system":os.environ.get("SYS",""),
+    "system_full":os.environ.get("SYSFULL",""),
+    "art":art,
+    "art_type":os.environ.get("ART_TYPE","") or "image/png",
+}))' | post)
+  say "start '$NAME' [$SYS] -> HTTP $code"
+) >/dev/null 2>&1 &
+
+exit 0

@@ -1,0 +1,38 @@
+#!/bin/bash
+# update-routine-status — when did the last COMPLETED 05:00 routine run start and finish?
+#
+# Prints one JSON object for the Sagamore pushers:
+#   {"running": false, "last_start": 1789117269, "last_end": 1789118671}
+#
+# Added 2026-09-11 so Sagamore can tell "this update applies tonight" (not news) from
+# "a 05:00 run came and went without applying it" (news). See app/updates.py in Sagamore.
+#
+# Read from update-manager's own run logs rather than systemd: `systemctl show` returns
+# empty Exec*Timestamps for update-routine.service once the oneshot has finished, and the
+# logs are what update-manager itself writes. Each is named <start>-routine.log in local
+# time; its mtime is the last line the run wrote, i.e. when it finished.
+# A run still in progress is skipped — its end is not known yet.
+#
+# Installed at /usr/local/bin/update-routine-status on pve.
+set -uo pipefail
+RUNS=/var/lib/update-manager/runs
+running=false
+systemctl is-active --quiet update-routine.service && running=true
+
+python3 - "$RUNS" "$running" <<'PY'
+import datetime, glob, json, os, sys
+runs, running = sys.argv[1], sys.argv[2] == "true"
+logs = sorted(glob.glob(os.path.join(runs, "*-routine.log")))
+if running and logs:
+    logs = logs[:-1]              # the newest belongs to the run still going
+out = {"running": running, "last_start": None, "last_end": None}
+if logs:
+    f = logs[-1]
+    stamp = os.path.basename(f).split("-")[0]
+    try:
+        out["last_start"] = int(datetime.datetime.strptime(stamp, "%Y%m%dT%H%M%S").timestamp())
+        out["last_end"] = int(os.path.getmtime(f))
+    except ValueError:
+        pass                      # unparseable name: report nothing rather than guess
+print(json.dumps(out))
+PY

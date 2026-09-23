@@ -1,0 +1,8 @@
+[Unit]
+Description=Push self-hosted-app version report to Sagamore
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/sagamore-app-push.sh

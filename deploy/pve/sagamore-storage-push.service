@@ -1,0 +1,8 @@
+[Unit]
+Description=Push ZFS dataset usage to Sagamore
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/sagamore-storage-push.sh

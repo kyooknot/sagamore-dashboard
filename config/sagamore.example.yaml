@@ -1,0 +1,106 @@
+# Sagamore configuration
+#
+# Copy to config/sagamore.yaml (or mount at /config/sagamore.yaml in Docker),
+# edit, restart. Every setting here is optional — anything you leave out keeps
+# its built-in default, and any panel whose source isn't configured degrades to
+# "not configured" rather than taking the dashboard down.
+#
+# PRECEDENCE: an explicit environment variable beats this file, which beats the
+# built-in default. That means you can keep secrets out of this file entirely
+# and pass them as environment variables — recommended if the file is in git.
+
+home_assistant:
+  url: http://homeassistant.local:8123
+  # A long-lived access token: HA → your profile → Security → Long-lived tokens.
+  # Prefer passing this as HA_TOKEN in the environment rather than storing here.
+  token: ""
+
+proxmox:
+  # Optional. Drives the Homelab Exposure and Storage panels.
+  # A READ-ONLY token is enough: PVEAuditor on /. Do not grant more.
+  host: https://proxmox.local:8006
+  token_id: ""          # e.g. root@pam!sagamore
+  token_secret: ""
+  nodes: [pve]
+  verify_tls: false     # true once your Proxmox cert is trusted
+
+unifi:
+  # Optional. Drives "who is on the network" in the Security panel.
+  host: https://192.168.1.1
+  api_key: ""
+  site: default
+  # Networks whose clients are visitors, and the ones that are yours.
+  guest_networks: [Guest]
+  trusted_networks: [Home]
+  # A client first seen inside this window counts as "new". Long enough to
+  # survive a weekend away, short enough to clear itself without a dismiss button.
+  new_device_days: 7
+
+bookmarks:
+  # Optional. Nextcloud Bookmarks — the same store Floccus can sync browsers to.
+  # Use a Nextcloud *app password*, never the account password: it is revocable
+  # on its own and keeps working if you put SSO in front of Nextcloud later.
+  url: ""
+  user: ""
+  password: ""
+  inbox: Inbox
+
+# The quick-link strip above the cards. Icon slugs come from
+# https://github.com/homarr-labs/dashboard-icons — anything unmapped falls back
+# to a favicon fetched from the site itself.
+favorites:
+  - name: Home Assistant
+    url: https://homeassistant.local
+    icon: home-assistant
+  - name: Proxmox
+    url: https://proxmox.local:8006
+    icon: proxmox
+  - name: Plex
+    url: https://plex.local
+    icon: plex
+
+# Devices that must never be reported as "not responding". Substrings, not exact
+# names — a media server can mint a player per connecting client and mark it
+# unavailable the moment it disconnects.
+ignore_devices: []
+
+# Circuits that are always on by design, so the phantom-load view doesn't nag
+# about them. Matched as substrings of the entity_id.
+baseline_circuits:
+  - sump_pump
+  - waterheater
+  - fridge
+
+leak:
+  # Event-driven sensors are legitimately silent for days — a dry leak sensor
+  # never publishes. Judging those by their own last_updated cries wolf, so
+  # watch a HEARTBEAT entity from the same integration instead: one that does
+  # update on a poll. Fresh heartbeat means silence is "dry", not "gone".
+  heartbeat: alarm_control_panel.alarm_control_panel
+  heartbeat_max_age: 3600
+
+gamevault:
+  # Optional. Point straight at the service, not at a hostname behind SSO —
+  # a dashboard poll would collect a login page instead of JSON.
+  url: ""
+
+gamelog:
+  # Optional. An hourly JSON export of gaming progress. Blank disables the panel.
+  url: ""
+
+tls:
+  # Host whose certificate expiry is watched. Blank disables the check.
+  cert_host: ""
+
+ingest:
+  # Shared token for the push endpoints (/api/ingest/patch, /api/ingest/apps).
+  # Blank means the endpoints reject everything, which is the safe default.
+  token: ""
+
+runtime:
+  # In Docker this should live on the mounted volume, e.g. /data/sagamore.db
+  db_path: /var/lib/sagamore/sagamore.db
+  timezone: UTC
+  poll_seconds: 60
+  slow_poll_seconds: 900
+  http_timeout: 20

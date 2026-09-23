@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Sync Safari bookmarks (including ones made on iOS, via iCloud) into linkding.
+  Mirrors the existing com.example.macupdate pattern: the Mac pushes, because
+  it sleeps and cannot be polled.
+
+  Install:
+    cp deploy/mac/com.example.safari-sync.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.example.safari-sync.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.safari-sync</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/you/sagamore/tools/safari-sync.py</string>
+    </array>
+
+    <!-- Every 6 hours. Bookmarks are not urgent, and this reads a file Safari
+         is actively using; no reason to poke it often. -->
+    <key>StartInterval</key>
+    <integer>21600</integer>
+
+    <!-- Catch up after the Mac has been asleep, rather than silently skipping. -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/safari-sync.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/safari-sync.log</string>
+</dict>
+</plist>

@@ -1,0 +1,13 @@
+[Unit]
+Description=Push self-hosted-app version report to Sagamore (4x daily)
+
+[Timer]
+# Every 6h, not 3h like the patch push: app-update.sh --dry-run queries GitHub release
+# APIs for several apps and unauthenticated requests are rate-limited to 60/hour.
+# :35 keeps it clear of both the patch push and the 08:00 digest.
+OnCalendar=*-*-* 00/6:35:00
+Persistent=true
+RandomizedDelaySec=180
+
+[Install]
+WantedBy=timers.target

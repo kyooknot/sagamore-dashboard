@@ -1,0 +1,29 @@
+[Unit]
+Description=Sagamore — house state dashboard
+Documentation=https://github.com/kyooknot/sagamore-dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sagamore
+Group=sagamore
+EnvironmentFile=/etc/sagamore/env
+WorkingDirectory=/opt/sagamore
+ExecStart=/opt/sagamore/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8092
+Restart=always
+RestartSec=10
+
+# The dashboard reads other systems; it has no business writing outside its own state.
+StateDirectory=sagamore
+ProtectSystem=strict
+ReadWritePaths=/var/lib/sagamore
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

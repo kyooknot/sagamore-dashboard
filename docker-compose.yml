@@ -1,0 +1,34 @@
+# Sagamore — docker compose
+#
+#   mkdir -p config data
+#   cp config/sagamore.example.yaml config/sagamore.yaml
+#   $EDITOR config/sagamore.yaml
+#   docker compose up -d
+#
+# Then edit config/sagamore.yaml whenever you like and `docker compose restart`.
+# No rebuild, no recreating the container.
+
+services:
+  sagamore:
+    build: .
+    # Or, once you've pushed an image somewhere:
+    # image: ghcr.io/<you>/sagamore:latest
+    container_name: sagamore
+    restart: unless-stopped
+    ports:
+      - "8092:8092"
+    volumes:
+      # Your config. Edit on the host, restart the container.
+      - ./config:/config
+      # The SQLite file and cached favicons. This is the only state that matters.
+      - ./data:/data
+    environment:
+      # Secrets are better here than in the YAML file, especially if that file
+      # is in version control. Anything set here wins over the file.
+      # - HA_TOKEN=${HA_TOKEN}
+      # - PVE_TOKEN_SECRET=${PVE_TOKEN_SECRET}
+      # - UNIFI_API_KEY=${UNIFI_API_KEY}
+      - TZ=${TZ:-UTC}
+    # The dashboard only makes outbound calls to your own services, so it needs
+    # no special networking. If Home Assistant is on a different host, make sure
+    # this container can reach it — bridge networking is usually enough.

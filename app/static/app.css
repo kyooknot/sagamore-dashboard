@@ -1,0 +1,644 @@
+/* Sagamore — instrument-panel styling.
+   System fonts only: this dashboard must render when the house has no internet. */
+
+:root {
+  --ground:   #f5f6f7;
+  --panel:    #ffffff;
+  --panel-2:  #eceff1;
+  --ink:      #14181c;
+  --muted:    #5b6770;
+  --rule:     #dbe1e5;
+  --accent:   #1c4f7c;
+
+  --ok:       #1a7a48;  --ok-bg:      #e4f2ea;
+  --warn:     #8a5d00;  --warn-bg:    #f7eeda;
+  --alert:    #a52820;  --alert-bg:   #f8e6e4;
+  --unknown:  #5b6770;  --unknown-bg: #e6eaed;
+  /* info: known, and handled by something else on a schedule -- no action needed.
+     Blue rather than green because Alex found green still read as a status to check
+     (2026-09-11, the "tonight" update chip). Same hue as --accent. */
+  --info:     #1c4f7c;  --info-bg:    #e3edf6;
+
+  --radius: 3px;
+
+  /* Brand colours, from Simple Icons where they publish one.
+     Sonos and Apple are genuinely #000000 -- their marks ARE monochrome -- so they
+     take currentColor and follow the theme rather than being forced to a black that
+     disappears on a dark page. The rest are the real brand hex in light mode and a
+     lifted variant in dark, because #003791 on near-black is unreadable. */
+  --b-sonos:       currentColor;
+  --b-apple:       currentColor;
+  --b-playstation: #003791;
+  --b-xbox:        #107C10;
+  --b-trophy:      #C8A02A;
+  --b-ra:          #A8791C;
+  --b-crown:       #C8A02A;
+  --b-check:       var(--ok);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:   #0d1114;
+    --panel:    #151b1f;
+    --panel-2:  #1c2429;
+    --ink:      #e5eaee;
+    --muted:    #8fa0ab;
+    --rule:     #253038;
+    --accent:   #6fb0e0;
+
+    --ok:       #4cb782;  --ok-bg:      #10281d;
+    --warn:     #d7a13f;  --warn-bg:    #2c2416;
+    --alert:    #e46a60;  --alert-bg:   #301917;
+    --unknown:  #8fa0ab;  --unknown-bg: #1f272c;
+    --info:     #6fb0e0;  --info-bg:    #13222e;
+
+    --b-playstation: #6ea8e8;
+    --b-xbox:        #6ac46a;
+    --b-trophy:      #e2bd52;
+    --b-ra:          #e0b24a;
+    --b-crown:       #e2bd52;
+  }
+}
+:root[data-theme="dark"] {
+  --ground:#0d1114; --panel:#151b1f; --panel-2:#1c2429;
+  --ink:#e5eaee; --muted:#8fa0ab; --rule:#253038; --accent:#6fb0e0;
+  --ok:#4cb782; --ok-bg:#10281d; --warn:#d7a13f; --warn-bg:#2c2416;
+  --alert:#e46a60; --alert-bg:#301917; --unknown:#8fa0ab; --unknown-bg:#1f272c;
+  --info:#6fb0e0; --info-bg:#13222e;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono, .num {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.wrap {
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.25rem clamp(1rem, 2vw, 2.75rem) 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ---------- masthead ---------- */
+.mast {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: .5rem 1rem;
+  border-bottom: 2px solid var(--ink); padding-bottom: .7rem;
+}
+.mast h1 { margin: 0; font-size: 1.5rem; letter-spacing: -.01em; }
+.mast h1 span { color: var(--muted); font-weight: 400; font-size: .82rem;
+  letter-spacing: .06em; text-transform: uppercase; margin-left: .5rem; }
+.freshness { font-size: .78rem; color: var(--muted); }
+
+/* ---------- overall banner ---------- */
+.overall {
+  display: flex; align-items: center; gap: .7rem;
+  padding: .7rem .9rem; border: 1px solid var(--rule); border-radius: var(--radius);
+  background: var(--panel);
+}
+.overall.s-ok      { border-color: var(--ok);      background: var(--ok-bg); }
+.overall.s-warn    { border-color: var(--warn);    background: var(--warn-bg); }
+.overall.s-alert   { border-color: var(--alert);   background: var(--alert-bg); }
+.overall.s-unknown { border-color: var(--unknown); background: var(--unknown-bg); }
+.overall b { font-size: 1.02rem; }
+.overall { display: block; }
+.overall-line { display: flex; align-items: center; gap: .6rem; }
+
+/* What is actually wrong, named. The marker carries the severity so the list scans
+   before it is read, and each title links to its own card. */
+.attn { list-style: none; margin: .55rem 0 0; padding: 0; display: grid; gap: .28rem; }
+.attn li { display: flex; align-items: baseline; gap: .45rem; font-size: .86rem;
+  flex-wrap: wrap; }
+.attn li::before { content: "\25CF"; font-size: .6rem; line-height: 1.6; }
+.attn li.a-alert::before   { color: var(--alert); }
+.attn li.a-warn::before    { color: var(--warn); }
+.attn li.a-unknown::before { color: var(--unknown); }
+.attn a { color: inherit; font-weight: 600; text-decoration: none;
+  border-bottom: 1px solid var(--rule); }
+.attn a:hover { border-bottom-color: currentColor; }
+.attn .why { color: var(--muted); font-size: .8rem; }
+/* So a card jumped to from the list is not tucked under the top of the window. */
+.card { scroll-margin-top: 1rem; }
+
+/* ---------- favourites ---------- */
+/* Square tiles, sized so two fit the width of one 330px card column. They keep their
+   own grid rather than joining .grid, so they stay square while the cards flow. */
+.favs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(9.5rem, 100%), 1fr));
+  gap: .6rem;
+}
+.fav {
+  aspect-ratio: 1 / 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: .5rem;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--ink); text-decoration: none;
+  transition: border-color .12s ease, transform .12s ease;
+}
+.fav:hover { border-color: var(--accent); transform: translateY(-2px); }
+/* Icons are letterboxed into a FIXED SQUARE BOX rather than keeping their own
+   aspect ratio. With `height: auto` every logo rendered at a different height --
+   the RetroAchievements mark is wide and short, the Paperless leaf tall and
+   narrow -- and because the tile centres its whole column, a shorter icon pulled
+   its label upwards. Nothing lined up across the strip.
+   `object-fit: contain` letterboxes instead of cropping or distorting, so a wide
+   logo still shows in full; it just no longer decides where the label sits. */
+.fav img {
+  width: 44%; max-width: 3.2rem;
+  height: 3.2rem;
+  object-fit: contain;
+}
+/* Two lines are reserved whether or not the name needs them. "RetroAchievements"
+   and "Home Assistant" wrap where "Plex" does not, and a one-line label in a
+   centred column sits at a different height from a two-line one. Reserving the
+   space makes every tile's content block identical, so the labels share a
+   baseline. Text is top-aligned in that box so single-line names align with the
+   FIRST line of the wrapped ones, not with their middle. */
+.fav span {
+  font-size: .78rem; font-weight: 600; text-align: center;
+  padding: 0 .4rem; line-height: 1.2;
+  min-height: 2.4em;
+  display: flex; align-items: flex-start; justify-content: center;
+}
+@media (max-width: 480px) {
+  .favs { grid-template-columns: repeat(auto-fill, minmax(min(7rem, 100%), 1fr)); gap: .45rem; }
+  .fav span { font-size: .7rem; }
+}
+
+/* ---------- grid ---------- */
+.grid {
+  display: grid; gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
+}
+
+/* Homelab Exposure carries six readings plus two tables, so in a 330px column it
+   renders as a tall thin ribbon that is painful to read. Give it the full width on
+   its own row; the tables need the horizontal space far more than the other cards do. */
+#homelab { grid-column: 1 / -1; }
+#homelab .readings { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
+  gap: 1px 1.2rem; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--rule);
+  border-radius: var(--radius);
+  padding: .9rem 1rem 1rem;
+  display: flex; flex-direction: column; gap: .6rem;
+}
+.card.s-ok      { border-top-color: var(--ok); }
+.card.s-warn    { border-top-color: var(--warn); }
+.card.s-alert   { border-top-color: var(--alert); }
+.card.s-unknown { border-top-color: var(--unknown); border-top-style: dashed; }
+
+/* Emoji are a deliberate warm-up of an otherwise very clinical page. They are
+   decorative only -- never the sole carrier of meaning -- so they are hidden from
+   screen readers with aria-hidden -- `speak: never` is barely supported -- and every
+   label still reads correctly without them. */
+.ico { font-style: normal; }
+.card h2 .ico { font-size: 1.05em; opacity: .9; }
+.attn .ico { font-size: .95em; }
+.mast-ico { font-size: .9em; margin-right: .15rem; }
+.card h2 .t { display: inline-flex; align-items: center; gap: .38rem; min-width: 0; }
+
+.card h2 {
+  margin: 0; font-size: .74rem; font-weight: 700;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--muted);
+  display: flex; justify-content: space-between; align-items: center; gap: .5rem;
+}
+.headline { margin: 0; font-size: 1.06rem; line-height: 1.3; font-weight: 600; }
+.sub { margin: 0; font-size: .84rem; color: var(--muted); }
+
+/* ---------- chips ---------- */
+.chip {
+  font: 600 .64rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .09em; text-transform: uppercase;
+  padding: .22rem .4rem; border: 1px solid currentColor; border-radius: 2px;
+  white-space: nowrap;
+}
+.c-ok      { color: var(--ok);      background: var(--ok-bg); }
+.c-warn    { color: var(--warn);    background: var(--warn-bg); }
+.c-alert   { color: var(--alert);   background: var(--alert-bg); }
+.c-unknown { color: var(--unknown); background: var(--unknown-bg); }
+.c-info    { color: var(--info);    background: var(--info-bg); }
+
+/* ---------- readings ---------- */
+.readings { display: flex; flex-direction: column; gap: 1px;
+  background: var(--rule); border: 1px solid var(--rule); border-radius: 2px; }
+.reading {
+  background: var(--panel); padding: .45rem .55rem;
+  display: grid; grid-template-columns: 1fr auto; gap: .15rem .6rem; align-items: baseline;
+}
+.reading .lbl { font-size: .86rem; }
+.reading .val { font-size: .9rem; font-weight: 600; text-align: right; }
+.reading .meta { grid-column: 1 / -1; font-size: .74rem; color: var(--muted); }
+.reading.r-alert   .val { color: var(--alert); }
+.reading.r-warn    .val { color: var(--warn); }
+.reading.r-unknown .val { color: var(--unknown); font-style: italic; }
+.reading.r-unknown { background: var(--unknown-bg); }
+
+.stale-flag { color: var(--unknown); font-weight: 600; }
+
+/* Percentage readings (pool + host capacity) carry their judgement in the number
+   itself, so green is earned here where it is not elsewhere: on a capacity figure the
+   reader wants "fine / getting full / act now" at a glance. Warn and alert already
+   colour via .r-warn/.r-alert above; this adds the green end, scoped to .pct so a
+   sea of green does not leak into every other card and dilute the signal. */
+.reading.pct .val { font-variant-numeric: tabular-nums; }
+
+/* Usage as a fill across the row: the bar IS the row, so a glance down the column
+   reads as a bar chart without adding a column. --pct is set inline by the panel;
+   the tint follows the status so a full pool reads red before you read the number. */
+.reading.fill {
+  background:
+    linear-gradient(to right, var(--fill) 0 var(--pct, 0%), var(--panel) var(--pct, 0%) 100%);
+  --fill: var(--ok-bg);
+}
+.reading.fill.r-warn    { --fill: var(--warn-bg); }
+.reading.fill.r-alert   { --fill: var(--alert-bg); }
+.reading.fill.r-unknown { --fill: var(--unknown-bg); }
+
+/* ---------- unit marks ---------- */
+/* Drawn after a number, sized in em so they track the value they belong to. */
+.unit {
+  font-size: .62em; font-weight: 700; letter-spacing: .04em;
+  vertical-align: .14em; opacity: .75;
+}
+.unit.ring {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.5em; height: 1.5em; letter-spacing: 0;
+  border: .12em solid currentColor; border-radius: 50%;
+}
+.unit-ico {
+  width: .82em; height: .82em; fill: currentColor;
+  vertical-align: -.02em;
+}
+.unit[data-u="ra"]      { color: var(--b-ra); opacity: 1; }
+.unit[data-u="g"]       { color: var(--b-xbox); opacity: 1; }
+.unit-ico[data-u="trophy"] { fill: var(--b-trophy); }
+.unit-ico[data-u="crown"]  { fill: var(--b-crown); }
+.unit-ico[data-u="check"]  { fill: var(--b-check); }
+.reading.pct.r-ok .val { color: var(--ok); }
+
+/* ---------- scoreboards (gaming) ---------- */
+/* Equal thirds: RetroPoints, Gamerscore and trophies are different currencies and
+   must not look rankable against each other, so none gets more room than the others. */
+.strip {
+  display: grid; grid-template-columns: repeat(var(--n, 3), 1fr);
+  gap: 1px; background: var(--rule); border: 1px solid var(--rule);
+  border-radius: var(--radius); margin-bottom: .5rem;
+}
+.strip .score {
+  background: var(--panel); padding: .5rem .55rem;
+  display: flex; flex-direction: column; gap: .1rem; min-width: 0;
+}
+.strip .score .val { font-size: 1.15rem; font-weight: 600; line-height: 1.1; }
+.strip .score .lbl { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); }
+.strip .score .meta { font-size: .7rem; color: var(--muted); }
+.strip .score.r-unknown { background: var(--unknown-bg); }
+.strip .score.r-unknown .val { color: var(--unknown); font-style: italic; }
+@media (max-width: 520px) { .strip { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------- banner (trash) ---------- */
+/* Only rendered on the day it is actionable, so it is allowed to sit above the fold
+   and be visually loud. It replaces a full card that said the same thing all week. */
+.banner {
+  display: flex; align-items: baseline; gap: .4rem; flex-wrap: wrap;
+  border: 1px solid var(--rule); border-left-width: 3px;
+  border-radius: var(--radius); background: var(--panel);
+  padding: .5rem .7rem; margin-bottom: .7rem; font-size: .92rem;
+}
+.banner .bin { font-size: 1rem; }
+.banner .sub, .banner .shift { font-size: .76rem; color: var(--muted); }
+.banner.b-info { border-left-color: var(--accent); }
+.banner.b-warn { border-left-color: var(--warn); background: var(--warn-bg); }
+
+/* ---------- manual refresh ---------- */
+#refresh {
+  margin-left: .45rem; padding: .12rem .45rem;
+  font: inherit; font-size: .78rem; line-height: 1.4;
+  color: var(--muted); background: var(--panel); cursor: pointer;
+  border: 1px solid var(--rule); border-radius: var(--radius);
+}
+#refresh:hover:not(:disabled) { color: var(--ink); border-color: var(--muted); }
+#refresh span { margin-left: .25rem; }
+#refresh:disabled { cursor: progress; opacity: .6; }
+#refresh.busy { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (max-width: 520px) { #refresh span { display: none; } }
+
+/* ---------- tables ---------- */
+.scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 2px; }
+table { border-collapse: collapse; width: 100%; font-size: .82rem; }
+th, td { padding: .35rem .5rem; text-align: left; border-bottom: 1px solid var(--rule); }
+th { font: 600 .64rem/1.4 ui-monospace, Menlo, monospace; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); background: var(--panel-2); }
+tbody tr:last-child td { border-bottom: 0; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; }
+/* Airtime cells colour like a capacity reading: the number carries the judgement. */
+td.r-ok .val    { color: var(--ok); }
+td.r-warn .val  { color: var(--warn); font-weight: 600; }
+td.r-alert .val { color: var(--alert); font-weight: 600; }
+
+/* draw bar for circuits */
+.bar { height: 4px; background: var(--accent); border-radius: 2px; min-width: 2px; display: block; }
+/* the unmetered remainder is the honest majority of the load - mark it as
+   estimated rather than measured, so it never reads as a real meter */
+.bar-un { background: repeating-linear-gradient(90deg, var(--muted) 0 4px, transparent 4px 7px); }
+tr.unmetered td { background: var(--panel-2); }
+.bar-cell { width: 90px; }
+
+/* ---------- bookmarks ---------- */
+.bm-folder { margin-bottom: .9rem; }
+.bm-folder h3 { margin: 0 0 .3rem; font-size: .72rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); }
+/* A flex-wrap row sized every chip to its own text, so a 4-character bookmark and a
+   40-character one sat side by side at wildly different widths and the list was very
+   hard to scan. A grid gives every entry the same box; long titles ellipsis rather
+   than stretching the row. */
+.bm-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr));
+  gap: .35rem;
+  align-items: stretch;
+}
+/* The bookmarklet drag-target also carries .bm but is a lone <a> with no icon or
+   delete form — the 3-column grid would stretch it across the card. Scope the grid
+   to chips inside a .bm-list and leave the standalone one inline. */
+.bm { display: inline-flex; align-items: center; gap: .35rem;
+  padding: .3rem .55rem; border: 1px solid var(--rule); border-radius: 2px;
+  background: var(--panel-2); text-decoration: none; color: var(--ink); font-size: .84rem; }
+.bm-list .bm {
+  display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: .45rem;
+  padding: .32rem .5rem; border: 1px solid var(--rule); border-radius: 2px;
+  background: var(--panel-2); text-decoration: none; color: var(--ink); font-size: .84rem;
+  min-width: 0;
+}
+.bm > a {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-decoration: none; color: inherit;
+}
+.bm-ico {
+  width: 16px; height: 16px; object-fit: contain; flex: 0 0 16px;
+  border-radius: 2px; opacity: .9;
+}
+.bm:hover { border-color: var(--accent); color: var(--accent); }
+.bm form { display: inline; }
+.bm button { border: 0; background: none; color: var(--muted); cursor: pointer;
+  font-size: .8rem; padding: 0 0 0 .1rem; }
+.bm button:hover { color: var(--alert); }
+
+form.inline { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+input[type=text], input[type=url], input[type=file] {
+  padding: .4rem .5rem; border: 1px solid var(--rule); border-radius: 2px;
+  background: var(--panel); color: var(--ink); font-size: .86rem; min-width: 0;
+}
+input[type=text], input[type=url] { flex: 1 1 11rem; }
+button.go {
+  padding: .42rem .8rem; border: 1px solid var(--accent); border-radius: 2px;
+  background: var(--accent); color: #fff; font-size: .84rem; font-weight: 600; cursor: pointer;
+}
+button.go:hover { filter: brightness(1.1); }
+
+details summary { cursor: pointer; font-size: .8rem; color: var(--muted); }
+details[open] summary { margin-bottom: .5rem; }
+
+.err { border: 1px solid var(--alert); background: var(--alert-bg); color: var(--alert);
+  padding: .5rem .7rem; border-radius: 2px; font-size: .84rem; }
+
+footer { color: var(--muted); font-size: .76rem; border-top: 1px solid var(--rule);
+  padding-top: .8rem; }
+
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+@media (max-width: 480px) {
+  .wrap { padding: .9rem .7rem 3rem; }
+  .grid { grid-template-columns: 1fr; }
+  .mast h1 { font-size: 1.25rem; }
+}
+
+/* ---- per-circuit trend -------------------------------------------------
+   Direction is carried by the glyph as well as the colour, so the meaning
+   survives a colour-blind reader and a greyscale print. Up is alert-coloured
+   because up is the one that costs money; down is ok-coloured. */
+td.trend { white-space: nowrap; }
+td.trend .up      { color: var(--alert); font-weight: 600; }
+td.trend .down    { color: var(--ok);    font-weight: 600; }
+td.trend .flat,
+td.trend .learning { color: var(--muted); }
+td.trend .learning { font-size: .74rem; font-style: italic; }
+
+.risers {
+  display: flex; flex-wrap: wrap; gap: .4rem;
+  margin: .1rem 0 .6rem;
+}
+.riser {
+  display: inline-flex; align-items: baseline; gap: .35rem;
+  padding: .18rem .5rem;
+  border: 1px solid var(--alert); border-radius: var(--radius);
+  background: var(--alert-bg); color: var(--ink);
+  font-size: .78rem; line-height: 1.3;
+}
+.riser b.up { color: var(--alert); font-variant-numeric: tabular-nums; }
+.riser.more { border-color: var(--rule); background: var(--panel-2); color: var(--muted); }
+
+/* ---- bookmarks: top of page, shut by default ---------------------------
+   The <h2> lives inside the <summary> so a closed card still reads as a
+   titled card rather than a stray disclosure triangle. */
+.bm-shell > summary {
+  cursor: pointer; list-style: none;
+  display: flex; align-items: baseline; gap: .6rem;
+}
+.bm-shell > summary::-webkit-details-marker { display: none; }
+.bm-shell > summary::after {
+  content: "\25B8"; color: var(--muted); font-size: .8rem;
+  transition: transform .15s ease;
+}
+.bm-shell[open] > summary::after { transform: rotate(90deg); }
+.bm-shell > summary h2 { margin: 0; border: 0; padding: 0; }
+.bm-shell[open] > summary { margin-bottom: .7rem; }
+.bm-count { color: var(--muted); font-size: .78rem; margin-left: auto; }
+@media (prefers-reduced-motion: reduce) {
+  .bm-shell > summary::after { transition: none; }
+}
+
+/* ---- card spans -------------------------------------------------------------
+   The auto-fit grid gives every card one ~330px column, which suits a short list
+   of readings and actively fights a card carrying a table. Three exceptions: */
+
+/* Now Playing leads the page and goes full width, so several things playing at
+   once sit side by side rather than stacking into a column. Each row takes a
+   third, matching "3 streams = 3 across". */
+#nowplaying { grid-column: 1 / -1; order: -1; }
+#nowplaying .readings {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  gap: .1rem 1.2rem;
+}
+/* With nothing playing there is one line of text, and a full-width band of empty
+   card is worse than no card. Shrink back to a single column. */
+/* Now Playing artwork: album art, box art, a film poster or an app icon. Sized
+   identically whatever the source so the right edge of the column stays straight,
+   and spanning both text rows so the title and the device beneath it read as one
+   block against it. object-fit: cover because these arrive in very different
+   aspect ratios -- square album art, tall posters, wide app banners. */
+#nowplaying .reading.has-art {
+  grid-template-columns: 1fr 3.4rem;
+  align-items: start;
+  column-gap: .7rem;
+}
+#nowplaying .reading.has-art .np-art {
+  grid-column: 2; grid-row: 1 / span 3;
+  width: 3.4rem; height: 3.4rem;
+  object-fit: cover; border-radius: 3px;
+  background: var(--panel-2); align-self: center;
+}
+#nowplaying .reading.has-art .meta { grid-column: 1; }
+/* Location sits tighter under the device type than the device type does under the
+   title -- they are one block of context, not two separate facts. */
+#nowplaying .reading .meta.loc { margin-top: -.08rem; }
+/* Brand mark on the device-type line. currentColor so it follows the muted meta
+   colour and the light/dark theme, and a fixed box so Sonos (wide) and Apple
+   (tall) take the same space and the text baseline does not shift between rows. */
+#nowplaying .reading .meta.dev { display: flex; align-items: center; gap: .3rem; }
+/* Sized by HEIGHT, with width from each mark's own aspect ratio. A square box is
+   wrong for the mixed set we have: Xbox is 1:1, but Sonos is a 5.14:1 wordmark that
+   filled a fifth of a square's height and rendered as an unreadable 2px smear. The
+   ratios below are measured from the artwork in _brands.svg. */
+#nowplaying .dev-logo {
+  --logo-h: .82rem;
+  --ar: 1;
+  height: var(--logo-h); width: calc(var(--logo-h) * var(--ar));
+  flex: 0 0 auto; fill: currentColor; opacity: .75;
+}
+#nowplaying .dev-logo[data-b="sonos"]       { --ar: 5.14; --logo-h: .72rem; fill: var(--b-sonos); }
+#nowplaying .dev-logo[data-b="apple"]       { --ar: 0.86; fill: var(--b-apple); }
+#nowplaying .dev-logo[data-b="playstation"] { --ar: 1.31; fill: var(--b-playstation); opacity: 1; }
+#nowplaying .dev-logo[data-b="xbox"]        { --ar: 1.00; fill: var(--b-xbox); opacity: 1; }
+
+/* Idle used to drop to `grid-column: auto`, so with nothing playing the panel
+   became an ordinary third-width card sitting among the others. Alex reads this as
+   a notification strip across the top, and a strip that moves and resizes
+   depending on whether music happens to be on is worse than a quiet one-line
+   band. Full width in both states; idle is simply one line tall. */
+#nowplaying.is-idle { grid-column: 1 / -1; }
+
+/* HVAC carries the zone table; half the row lets it render without wrapping. */
+#hvac { grid-column: span 2; }
+/* Gaming carries the per-platform table and three strips of boxes. */
+#gaming { grid-column: span 2; }
+/* Storage was wide for the same reason and no longer needs to be: everything with a
+   table in it folds away and the card is two lines. At one column it lines up with
+   Security and Network Health instead of straddling them. */
+#storage { grid-column: span 1; }
+
+@media (max-width: 800px) {
+  #hvac, #nowplaying, #homelab, #gaming { grid-column: 1 / -1; }
+}
+
+/* ---- bookmarks: always open, always last ---------------------------------- */
+#bookmarks { grid-column: 1 / -1; order: 99; }
+.bm-head { display: flex; align-items: baseline; gap: .6rem; margin-bottom: .7rem; }
+.bm-head h2 { margin: 0; border: 0; padding: 0; }
+
+
+/* ---- mobile hardening (2026-09-02) ---------------------------------------
+   The page was rendering wider than the screen on a phone. Two causes, both
+   the same shape:
+
+   1. Every auto-fit/auto-fill grid used minmax(FIXED, 1fr). Such a track can
+      never be narrower than FIXED, so on any viewport below it the grid — and
+      with it the page — overflows sideways. Those are now
+      minmax(min(FIXED, 100%), 1fr), which collapses to the container instead.
+      That is the real fix and it applies at every width, not just phones.
+
+   2. A grid or flex item defaults to min-width:auto, meaning it refuses to
+      shrink below its CONTENT. One long unbroken string — a hostname, a URL,
+      an entity id like primary_en_suite_bathroom_air_conditioner — then widens
+      its column and pushes the whole page out. min-width:0 plus a wrapping
+      rule lets the text break rather than the layout. */
+.card, .readings, .reading, .bm-list, .bm, .attn, .attn li,
+.strip, .score, .mast, .favs, .fav { min-width: 0; }
+
+/* ⚠️ NOT `.reading > *`. A reading is `1fr auto`: the label takes the 1fr and the
+   value sizes to its content. Allowing BOTH to shrink let a long value ("1 of 16
+   have updates · 16 of 34 guests tracked") squeeze the label to nothing, and the
+   wrapping rule below then broke it one character per line — a vertical column of
+   letters spelling "Self-hosted apps". Only the value may shrink; the label never. */
+.reading { grid-template-columns: minmax(0, 1fr) minmax(0, auto); }
+.reading .lbl { min-width: 0; overflow-wrap: normal; word-break: normal; }
+.reading .val { min-width: 0; }
+
+/* Break anywhere only where a long token would otherwise force the width.
+   Normal prose still wraps on spaces. */
+.reading .val, .reading .meta, .bm, .attn li, .card p, .note, .sub {
+  overflow-wrap: anywhere;
+}
+
+/* One column earlier than before. 480px only caught phones in portrait; a large
+   phone in landscape, or a small tablet, still got two cramped columns with the
+   tables inside them scrolling independently. */
+@media (max-width: 640px) {
+  .grid { grid-template-columns: 1fr; }
+  #hvac, #nowplaying, #homelab, #gaming, #storage { grid-column: 1 / -1; }
+}
+
+/* Last-resort guard: nothing should ever scroll the page sideways. Tables keep
+   their own .scroll container, so this hides layout bugs rather than content. */
+html, body { max-width: 100%; overflow-x: hidden; }
+
+/* Now Playing leads the page in its own one-column grid above the status banner.
+   It keeps .card styling and the grid gap, but must not be laid out against the
+   other cards' column tracks — it is a band, not a tile. */
+.grid-lead { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+
+/* Direction arrow on a reading's meta line. Same convention as the per-circuit trend
+   column: up is alert-coloured because up is the one that costs money, and the glyph
+   carries the direction as well as the colour so it survives a colour-blind reader. */
+.reading .meta .dir { font-weight: 700; margin-right: .15rem; }
+.reading .meta .dir.up   { color: var(--alert); }
+.reading .meta .dir.down { color: var(--ok); }
+.reading .meta .dir.flat { color: var(--muted); }
+/* Screen-reader text for the arrow, which is aria-hidden as decoration. */
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Trophy / achievement progress on a Now Playing console row. Muted and on its own
+   line: it is context for the title above it, not a competing fact. */
+.reading.np .np-prog { display: block; font-size: .74rem; color: var(--muted);
+                       font-weight: 400; margin-top: .05rem; }
+
+/* Trophy breakdown on a PlayStation Now Playing row, laid out like Sony's own:
+   one cup per tier with its count beside it. Colours are the metals rather than
+   the theme palette — a gold trophy is gold on any dashboard. */
+.reading.np .np-prog .tro { display: inline-flex; align-items: center; gap: .12rem;
+                            margin-right: .38rem; font-variant-numeric: tabular-nums; }
+.reading.np .np-prog .tro-i { width: .74rem; height: .74rem; }
+.reading.np .np-prog .t-platinum .tro-i { fill: #9fb6cd; }
+.reading.np .np-prog .t-gold     .tro-i { fill: #d4af37; }
+.reading.np .np-prog .t-silver   .tro-i { fill: #b9bcc0; }
+.reading.np .np-prog .t-bronze   .tro-i { fill: #b0714a; }
+.reading.np .np-prog .tro-sum { opacity: .85; margin-right: .1rem; }
+
+/* Xbox gamerscore. Xbox has no trophy tiers, so this is its counterpart to the
+   PlayStation cups: earned/total with the G the Xbox UI uses. */
+.reading.np .np-prog .gs { font-variant-numeric: tabular-nums; margin-left: .1rem; }
+.reading.np .np-prog .gs-g { color: #107c10; font-weight: 700; margin-left: .05rem; }

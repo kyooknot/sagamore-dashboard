@@ -1,0 +1,12 @@
+[Unit]
+Description=Push ZFS dataset usage to Sagamore (hourly)
+
+[Timer]
+# Hourly: `zfs list` is a metadata read costing milliseconds, and disk usage is the one
+# number people want current when they are deciding whether something will fit.
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

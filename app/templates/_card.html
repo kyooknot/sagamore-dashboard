@@ -1,0 +1,455 @@
+{# One dashboard card. Extracted from index.html on 2026-09-02 so it can be rendered
+   in two places: Now Playing leads the page above the status banner, everything else
+   flows in the grid below. An include rather than a macro, because include inherits
+   the full template context -- ICON, the reading() macro and the rest resolve exactly
+   as they did inline. #}
+    {% set ps = p.rollup().value %}
+    <section class="card s-{{ ps }}{% if p.key == 'nowplaying' and not p.rows %} is-idle{% endif %}" id="{{ p.key }}">
+      <h2><span class="t">{% if ICON.get(p.key) %}<span class="ico" aria-hidden="true">{{ ICON[p.key] }}</span> {% endif %}{{ p.title }}</span>
+          <span class="chip c-{{ ps }}">{{ ps }}</span></h2>
+
+      {% if p.error %}
+        <p class="headline">Can't see this right now</p>
+        <p class="sub">{{ p.error }}</p>
+      {% else %}
+        {% if p.headline %}<p class="headline">{{ p.headline }}</p>{% endif %}
+        {% if p.sub %}<p class="sub">{{ p.sub }}</p>{% endif %}
+
+        {% if p.readings and p.key != 'nowplaying' %}
+          {% set STRIPS = ['score', 'progress', 'family'] %}
+          {% set main = p.readings | rejectattr('group', 'in', ['maint', 'quiet'] + STRIPS) | list %}
+          {% set quiet = p.readings | selectattr('group', 'equalto', 'quiet') | list %}
+          {% set maint = p.readings | selectattr('group', 'equalto', 'maint') | list %}
+
+          {# Equal-width boxes, one row per group: the three scoreboards (different
+             currencies, never summed), then mastered vs beaten, then a box per person.
+             Column count comes from the group's own length, so adding a fifth family
+             member needs no CSS. #}
+          {% for g in STRIPS %}
+            {% set items = p.readings | selectattr('group', 'equalto', g) | list %}
+            {% if items %}
+            <div class="strip" style="--n: {{ items | length }}">
+              {% for r in items %}
+              <div class="score r-{{ r.effective_status.value }}">
+                <span class="val num">{{ r.display() }}{% if r.mark and not r.missing %} {{ unit_mark(r.mark) }}{% endif %}</span>
+                <span class="lbl">{{ r.label }}</span>
+                <span class="meta">{% if r.missing %}<span class="stale-flag">not seen</span> {% endif %}{{ r.note }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          {% endfor %}
+
+          {% set hosts = main | selectattr('group', 'equalto', 'host') | list %}
+          {% set jobs = main | selectattr('group', 'equalto', 'jobs') | list %}
+          {% set rest = main | rejectattr('group', 'in', ['host', 'jobs']) | list %}
+          {% if rest %}
+          <div class="readings">
+            {% for r in rest %}{{ reading(r) }}{% endfor %}
+          </div>
+          {% endif %}
+
+          {# The nodes' own boot and VM disks. Real, and worth being able to reach, but
+             not what anyone opens this card to find out -- so folded away unless one of
+             them is actually filling up. #}
+          {% if hosts %}
+            {% set tight = hosts | rejectattr('effective_status.value', 'equalto', 'ok') | list %}
+            <details{% if tight %} open{% endif %}>
+              <summary>Local storage —
+                {% if tight %}{{ tight | length }} of {{ hosts | length }} want attention
+                {% else %}{{ hosts | length }} volumes, all healthy{% endif %}</summary>
+              <div class="readings">
+                {% for r in hosts %}{{ reading(r) }}{% endfor %}
+              </div>
+            </details>
+          {% endif %}
+
+          {# Everything that is behaving. On Security that is doors, windows, locks and
+             water: worth being able to check, not worth reading every visit. Anything
+             that stops being OK is promoted out of here by the panel itself, so this
+             never hides a problem -- it only hides good news. #}
+          {# The jobs behind the numbers above. Collapsed while they are all running to
+             schedule -- but they still score into the card, so a timer that died opens
+             this section by itself rather than waiting to be looked for. #}
+          {% if jobs %}
+            {% set late = jobs | rejectattr('effective_status.value', 'equalto', 'ok') | list %}
+            <details{% if late %} open{% endif %}>
+              <summary>Data pipeline —
+                {% if late %}{{ late | length }} of {{ jobs | length }} want attention
+                {% else %}all {{ jobs | length }} jobs on schedule{% endif %}</summary>
+              <div class="readings">
+                {% for r in jobs %}{{ reading(r) }}{% endfor %}
+              </div>
+            </details>
+          {% endif %}
+
+          {% if quiet %}
+            <details>
+              <summary>{{ quiet | length }} more, all in order</summary>
+              <div class="readings">
+                {% for r in quiet %}{{ reading(r) }}{% endfor %}
+              </div>
+            </details>
+          {% endif %}
+
+          {# Maintenance is real but slow-moving: filter life and service intervals do
+             not change between refreshes and do not need to be read every visit. They
+             stay collapsed unless one of them actually wants attention. #}
+          {% if maint %}
+            {% set due = maint | rejectattr('effective_status.value', 'equalto', 'ok') | list %}
+            <details{% if due %} open{% endif %}>
+              <summary>Maintenance —
+                {% if due %}{{ due | length }} of {{ maint | length }} want attention
+                {% else %}all {{ maint | length }} in range{% endif %}</summary>
+              <div class="readings">
+                {% for r in maint %}{{ reading(r) }}{% endfor %}
+              </div>
+            </details>
+          {% endif %}
+        {% endif %}
+
+        {# ---- power: per-circuit detail ---- #}
+        {% if p.key == 'power' and p.rows %}
+          {# Scale bars against the WHOLE HOUSE, not the largest metered circuit -
+             otherwise the biggest plug always looks like it draws everything. #}
+          {% set peak = p.house_avg or ((p.rows | map(attribute='watts') | select('number') | list | max) or 1) %}
+          {# The risers are the actionable part, so they sit OUTSIDE the collapsed
+             table - "the bill is up" is not useful without "and this is why". #}
+          {% if p.risers %}
+          <div class="risers">
+            {% for c in p.risers[:4] %}
+            <span class="riser" title="last 24h vs the prior fortnight">
+              {{ c.name }}
+              <b class="up">&#9650;{% if c.trend.pct is not none %} {{ '%.0f'|format(c.trend.pct) }}%{% else %} +{{ '%.0f'|format(c.trend.delta_w) }} W{% endif %}</b>
+            </span>
+            {% endfor %}
+            {% if p.risers | length > 4 %}<span class="riser more">+{{ p.risers|length - 4 }} more</span>{% endif %}
+          </div>
+          {% endif %}
+          <details>
+            <summary>{{ p.rows | length }} measured circuits{% if p.unmetered %} + unmetered{% endif %}</summary>
+            <div class="scroll">
+            <table>
+              <thead><tr><th>Circuit</th><th>Draw</th><th class="bar-cell"></th><th>Share</th><th>vs usual</th><th>Seen</th></tr></thead>
+              <tbody>
+              {% if p.unmetered %}
+                <tr class="unmetered">
+                  <td><b>Unidentified</b></td>
+                  <td class="n num"><b>{{ '%.0f'|format(p.unmetered) }} W</b></td>
+                  <td class="bar-cell">
+                    <span class="bar bar-un" style="width: {{ (100 * p.unmetered / peak) | round(0, 'floor') }}%"></span>
+                  </td>
+                  <td class="n num">{{ '%.0f'|format(100 * p.unmetered / peak) }}%</td>
+                  <td class="n num trend"></td>
+                  <td class="num">—</td>
+                </tr>
+              {% endif %}
+              {% for c in p.rows %}
+                <tr>
+                  <td>{{ c.name }}</td>
+                  <td class="n num">{% if c.watts is not none %}{{ '%.0f'|format(c.watts) }} W{% else %}—{% endif %}</td>
+                  <td class="bar-cell">
+                    {% if c.watts %}<span class="bar" style="width: {{ (100 * c.watts / peak) | round(0, 'floor') }}%"></span>{% endif %}
+                  </td>
+                  <td class="n num">{% if c.watts and p.house_avg %}{{ '%.1f'|format(100 * c.watts / p.house_avg) }}%{% endif %}</td>
+                  <td class="n num trend">
+                    {%- set t = c.trend -%}
+                    {%- if t.state == 'learning' -%}
+                      <span class="learning" title="not enough history yet to know what usual looks like">learning</span>
+                    {%- elif t.state == 'flat' -%}
+                      <span class="flat" title="within normal variation">&ndash;</span>
+                    {%- else -%}
+                      <span class="{{ t.state }}" title="last 24h averaged {{ '%.1f'|format(t.recent) }} W against {{ '%.1f'|format(t.baseline) }} W over the prior {{ '%.0f'|format(t.base_hours) }}h">
+                        {{ '&#9650;'|safe if t.state == 'up' else '&#9660;'|safe }}
+                        {% if t.pct is not none %}{{ '%+.0f'|format(t.pct) }}%{% else %}{{ '%+.0f'|format(t.delta_w) }} W{% endif %}
+                      </span>
+                    {%- endif -%}
+                  </td>
+                  <td class="num">{% if c.stale %}<span class="stale-flag">stale</span>{% else %}ok{% endif %}</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            </div>
+            {% if p.house_avg %}
+            <p class="sub" style="margin-top:.5rem">
+              Shares are against the whole-house cycle average ({{ '%.0f'|format(p.house_avg) }} W)
+              from the utility, which updates once a day — so treat them as proportions, not live readings.
+              A whole-house energy monitor would make this exact.
+            </p>
+            {% endif %}
+            <p class="sub">
+              <b>vs usual</b> compares each circuit's mean draw over the last 24 hours
+              against its own mean over the fortnight before that &mdash; so it measures
+              energy, not whether you happened to catch the dishwasher mid-cycle. A circuit
+              is only flagged when it moves at least {{ pct_gate }}% <em>and</em> at least
+              {{ watt_gate }} W, because a phone charger doubling from 3 W is not news.
+              {% if p.learning %}{{ p.learning }} circuit(s) say <em>learning</em> &mdash;
+              there isn't enough stored history to claim what usual looks like for them yet.{% endif %}
+            </p>
+          </details>
+        {% endif %}
+
+        {# ---- now playing ---- #}
+        {% if p.key == 'nowplaying' and p.rows %}
+          <div class="readings">
+            {% for r in p.rows %}
+            <div class="reading np{% if r.art %} has-art{% endif %}">
+              <span class="lbl"><b>{{ r.what }}</b>{% if r.prog %}
+                <span class="np-prog">
+                  {%- if r.prog.tro %}
+                    {#- Sony's own shape: one cup per tier with its count. #}
+                    {%- for tier in ['platinum', 'gold', 'silver', 'bronze'] %}
+                    <span class="tro t-{{ tier }}" title="{{ tier }}">
+                      <svg class="tro-i" aria-hidden="true"><use href="#brand-trophy"/></svg>{{ r.prog.tro[tier] }}</span>
+                    {%- endfor %}
+                    <span class="tro-sum">{{ r.prog.e }}/{{ r.prog.t }}</span>
+                  {%- else %}
+                    {#- OpenXBL sometimes reports totalAchievements as 0/None while the
+                        gamerscore total is fine, so the count is only drawn when there
+                        is a real denominator. Otherwise gamerscore carries the row. -#}
+                    {%- if r.prog.t %}{{ r.prog.e }}/{{ r.prog.t }} {{ r.prog.word }}
+                    {%- elif r.prog.e %}{{ r.prog.e }} {{ r.prog.word }}{% endif %}
+                  {%- endif %}
+                  {%- if r.prog.gs %} <span class="gs">{{ r.prog.gs.e }}/{{ r.prog.gs.t }}<span class="gs-g">G</span></span>{% endif %}
+                  {%- if r.prog.pct is not none %} · {{ r.prog.pct }}%{% endif %}
+                  {%- if r.prog.hours %} · {{ r.prog.hours }} played{% endif %}
+                </span>{% endif %}</span>
+              {# Artwork sits right and spans both text rows; with none, the kind label
+                 keeps that column from collapsing. #}
+              {% if r.art %}
+                <img class="np-art" src="{{ r.art }}" alt="" loading="lazy"
+                     referrerpolicy="no-referrer" onerror="this.style.display='none'">
+              {% else %}
+                <span class="val num">{{ r.kind }}</span>
+              {% endif %}
+              {# Device type then location, on their own lines: the friendly name conflates
+                 the two and sometimes contradicts them. Group size rides with the device. #}
+              {# The mark IS the device name -- printing "Sonos" beside the Sonos logo
+                 said it twice. A device type with no mark still prints its name, and the
+                 logo carries a <title> so it is not silent to a screen reader. #}
+              <span class="meta dev">
+                {%- if r.logo -%}
+                  <svg class="dev-logo" data-b="{{ r.logo }}" role="img"><title>{{ r.dev }}</title><use href="#brand-{{ r.logo }}"></use></svg>
+                {%- else -%}
+                  {{ r.dev }}{% if r.also %} +{{ r.also | length }}{% endif %}
+                {%- endif -%}
+              </span>
+              <span class="meta loc">
+                {% if r.loc %}{{ r.loc }}{% endif %}
+                {% if r.detail %}{% if r.loc %} · {% endif %}{{ r.detail }}{% endif %}
+                {% if r.state == 'paused' %} · <span class="stale-flag">paused</span>{% endif %}
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {# ---- hvac: per-zone detail ---- #}
+        {% if p.key == 'hvac' and p.rows %}
+          {% set odd = p.rows | selectattr('action', 'equalto', 'unknown') | list %}
+          <details{% if odd %} open{% endif %}>
+            <summary>Zones —
+              {% if odd %}{{ odd | length }} of {{ p.rows | length }} not saying what they are doing
+              {% else %}{{ p.rows | length }} reporting{% endif %}</summary>
+          <div class="scroll">
+          <table>
+{# "Now" lived here AND in the readings above — the same number twice on
+               one card. The readings list every room; this table carries only what a
+               temperature cannot tell you. #}
+            <thead><tr><th>Zone</th><th>Mode</th><th>Doing</th><th>Target</th></tr></thead>
+            <tbody>
+            {% for z in p.rows %}
+              <tr>
+                <td>{{ z.name }}</td><td>{{ z.mode }}</td>
+                  <td>{% if z.action == "unknown" %}<span class="stale-flag">unknown</span>{% else %}{{ z.action }}{% endif %}</td>
+                                <td class="n num">{{ z.target }}°</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          </div>
+          </details>
+        {% endif %}
+
+        {# ---- network: per-radio airtime ---- #}
+        {# Airtime in use, not signal strength. Above ~50% clients start retrying
+           however many bars they show, which is why "full bars but slow" and a
+           congested channel are the same complaint. #}
+        {% if p.key == 'network' and p.rows %}
+          {% set busy = p.rows | rejectattr('state', 'equalto', 'ok') | list %}
+          <details{% if busy %} open{% endif %}>
+            <summary>Radios —
+              {% if busy %}{{ busy | length }} of {{ p.rows | length }} degraded
+              {% else %}all {{ p.rows | length }} healthy{% endif %}</summary>
+            <div class="scroll">
+            <table>
+              {# Airtime is context; "outside" and "happy" are the judgement. A radio can
+                 be at 88% because of our own download and be perfectly healthy. #}
+              <thead><tr><th>Access point</th><th>Band</th><th>Ch</th><th>Airtime</th>
+                         <th>Outside</th><th>Happy</th><th>Clients</th></tr></thead>
+              <tbody>
+              {% for r in p.rows %}
+                <tr>
+                  <td>{{ r.ap }}</td><td>{{ r.band }}</td>
+                  <td class="n num">{{ r.channel }}</td>
+                  <td class="n num">{% if r.util is none %}—{% else %}{{ r.util }}%{% endif %}</td>
+                  <td class="n num r-{{ r.state }}">
+                    <span class="val">{% if r.interference is none %}—{% else %}{{ r.interference }}%{% endif %}</span></td>
+                  <td class="n num">{{ r.satisfaction ~ '%' if r.satisfaction is not none else '—' }}</td>
+                  <td class="n num">{{ r.clients if r.clients is not none else '—' }}</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            </div>
+          </details>
+        {% endif %}
+
+        {# ---- storage: what is using the pools ---- #}
+        {% if p.key == 'storage' and p.rows %}
+          <details>
+            <summary>By project — {{ p.rows | length }} tracked</summary>
+            <div class="scroll">
+            <table>
+              <thead><tr><th>Project</th><th>Used</th></tr></thead>
+              <tbody>
+              {% for d in p.rows %}
+                <tr><td>{{ d.project }}</td><td class="n num">{{ d.human }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            </div>
+          </details>
+        {% endif %}
+
+        {# ---- gaming: per-platform ---- #}
+        {% if p.key == 'gaming' and p.rows %}
+          <details>
+            <summary>By platform</summary>
+            <div class="scroll">
+            <table>
+              <thead><tr><th>Platform</th><th>Games</th><th>Hours</th><th>Beaten</th><th>Mastered</th></tr></thead>
+              <tbody>
+              {% for g in p.rows %}
+                <tr><td>{{ g.name }}</td>
+                    <td class="n num">{{ '{:,}'.format(g.games) if g.games else '—' }}</td>
+                    <td class="n num">{{ '{:,}'.format(g.hours) if g.hours else '—' }}</td>
+                    <td class="n num">{{ g.beaten if g.beaten is not none else '—' }}</td>
+                    <td class="n num">{{ g.mastered if g.mastered is not none else '—' }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            </div>
+          </details>
+        {% endif %}
+
+        {# ---- collection: holdings per platform ---- #}
+        {% if p.key == 'collection' and p.rows %}
+          <details>
+            <summary>By platform — {{ p.rows | length }} systems</summary>
+            <div class="scroll">
+            <table>
+              <thead><tr><th>Platform</th><th>Games</th><th>Value</th></tr></thead>
+              <tbody>
+              {% for g in p.rows %}
+                <tr><td>{{ g.name }}</td>
+                    <td class="n num">{{ g.games }}</td>
+                    <td class="n num">{{ g.value or '—' }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            </div>
+          </details>
+        {% endif %}
+
+        {# ---- collection: most recent acquisitions ---- #}
+        {% if p.key == 'collection' and p.app_rows %}
+          <details>
+            <summary>Recently added</summary>
+            <div class="scroll">
+            <table>
+              <thead><tr><th>Title</th><th>Platform</th><th>Added</th><th>Value</th></tr></thead>
+              <tbody>
+              {% for g in p.app_rows %}
+                <tr><td>{{ g.title }}</td>
+                    <td>{{ g.platform }}</td>
+                    <td class="n">{{ g.when }}</td>
+                    <td class="n num">{{ g.value or '—' }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            </div>
+          </details>
+        {% endif %}
+
+        {# ---- HA health: only rendered when something is wrong ---- #}
+        {% if p.dead_rows %}
+          <details open>
+            <summary>{{ p.dead_rows | length }} device(s) not responding</summary>
+            <div class="scroll">
+            <table>
+              <thead><tr><th>Device</th><th>Entities</th></tr></thead>
+              <tbody>
+              {% for d in p.dead_rows %}
+                <tr><td>{{ d.device }}</td><td class="n num">{{ d.entities }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            </div>
+          </details>
+        {% endif %}
+
+        {# ---- homelab: patch debt per node ---- #}
+        {% if p.key == 'homelab' and p.rows %}
+          <details>
+            <summary>Pending packages by node</summary>
+            <div class="scroll">
+            <table>
+              <thead><tr><th>Node</th><th>Pending</th><th>Packages</th></tr></thead>
+              <tbody>
+              {% for r in p.rows %}
+                <tr>
+                  <td>{{ r.node }}{% if r.tag %} <span class="sub">({{ r.tag }})</span>{% endif %}</td>
+                  <td class="n num">{% if r.count is none %}<span class="stale-flag">?</span>{% else %}{{ r.count }}{% endif %}</td>
+                  <td>{{ r.packages | join(', ') or '—' }}</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            </div>
+          </details>
+        {% endif %}
+
+        {# ---- homelab: self-hosted app versions (pushed by pve) ---- #}
+        {% if p.key == 'homelab' and p.app_rows %}
+          {% set CHIP = {'ok':'ok','scheduled':'info','update':'warn','missed':'warn','failed':'alert','unknown':'unknown'} %}
+          {% set WORD = {'ok':'current','scheduled':'tonight','update':'needs you','missed':'missed 05:00','failed':'failed','unknown':'unreadable'} %}
+          {% set stale_apps = p.app_rows | rejectattr('state', 'in', ['ok', 'scheduled']) | list %}
+          {% set soon_apps = p.app_rows | selectattr('state', 'equalto', 'scheduled') | list %}
+          <details{% if stale_apps %} open{% endif %}>
+            <summary>Self-hosted apps —
+              {% if stale_apps %}{{ stale_apps | length }} of {{ p.app_rows | length }} want attention
+              {% elif soon_apps %}{{ soon_apps | length }} updating on schedule, the rest current
+              {% else %}all {{ p.app_rows | length }} current{% endif %}</summary>
+            <div class="scroll">
+            <table>
+              <thead><tr><th>App</th><th>State</th><th>Version</th><th>Detail</th></tr></thead>
+              <tbody>
+              {% for a in p.app_rows %}
+                <tr>
+                  <td>{{ a.name }}</td>
+                  <td><span class="chip c-{{ CHIP.get(a.state, 'unknown') }}">{{ a.word or WORD.get(a.state, a.state) }}</span></td>
+                  <td class="mono">{{ a.current or '—' }}{% if a.latest and a.latest != a.current %}
+                      → {{ a.latest }}{% endif %}</td>
+                  <td>{{ a.detail or '—' }}{% if a.managed %}
+                      <span class="sub">({{ a.managed }})</span>{% endif %}</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            </div>
+          </details>
+        {% endif %}
+      {% endif %}
+    </section>

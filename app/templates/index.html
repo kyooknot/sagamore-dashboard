@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Sagamore</title>
+<link rel="stylesheet" href="/static/app.css?v={{ asset_v }}">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🏛️</text></svg>">
+</head>
+{# Units, drawn after the number the way "kg" or "°F" would be. RA points, Gamerscore
+   and trophies are three different currencies, and the mark is what says which. #}
+{# One icon per card, used by the card heading and by the attention list so the two
+   refer to each other at a glance. Keyed on panel id, so a card without one just
+   renders its title. #}
+{% set ICON = {
+  'nowplaying': '🎧', 'hvac': '🌡️', 'power': '⚡', 'security': '🔐',
+  'network': '📶', 'storage': '💽', 'gaming': '🎮', 'homelab': '🖥️',
+  'bookmarks': '🔖', 'collection': '📚'
+} %}
+
+{% macro unit_mark(m) %}
+  {%- if m in ('trophy', 'crown', 'check') -%}
+    <svg class="unit-ico" data-u="{{ m }}" role="img"><use href="#brand-{{ m }}"></use></svg>
+  {%- elif m == 'g' -%}
+    <span class="unit ring" data-u="g" title="Gamerscore">G</span>
+  {%- else -%}
+    <span class="unit" data-u="{{ m }}" title="RetroAchievements">{{ m | upper }}</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro reading(r) %}
+  {% set rs = r.effective_status.value %}
+  <div class="reading r-{{ rs }}{% if r.group in ('pool', 'host') %} pct{% endif %}{% if r.bar is not none %} fill{% endif %}"
+       {% if r.bar is not none %}style="--pct: {{ '%.1f' | format(r.bar) }}%"{% endif %}>
+    <span class="lbl">{{ r.label }}</span>
+    <span class="val num">{{ r.display() }}{% if r.mark %} {{ unit_mark(r.mark) }}{% endif %}</span>
+    {% if r.note or r.stale or (r.age_text and r.max_age) %}
+    <span class="meta">
+      {% if r.stale %}<span class="stale-flag">NOT REPORTING — last seen {{ r.age_text }}.</span>{% endif %}
+      {% if r.missing and not r.stale %}<span class="stale-flag">No value.</span>{% endif %}
+      {%- if r.trend %}<span class="dir {{ r.trend }}" aria-hidden="true">{{ {'up':'▲','down':'▼','flat':'–'}[r.trend] }}</span><span class="vh">{{ {'up':'up','down':'down','flat':'level'}[r.trend] }}</span> {% endif %}
+      {{ r.note }}
+    </span>
+    {% endif %}
+  </div>
+{% endmacro %}
+<body>
+{% include '_brands.svg' %}
+<div class="wrap">
+
+  <header class="mast">
+    <h1><span class="ico mast-ico" aria-hidden="true">🏛️</span> Sagamore<span>the instrumented house</span></h1>
+    <div class="freshness">
+      {% if polled_at %}
+        Polled <span class="mono" data-since="{{ polled_at }}">just now</span>
+      {% else %}Never polled{% endif %}
+      <button type="button" id="refresh" title="Collect now">↻<span>Refresh</span></button>
+    </div>
+  </header>
+
+  {# Trash sits at the very top: it is the one thing on this page with a deadline,
+     and it is only here at all for about twelve hours a week. #}
+  {% if trash %}
+  <div class="banner b-{{ trash.status }}">
+    <span class="bin">🗑️</span>
+    <b>{{ trash.type }}</b>
+    {% if trash.today %}collected today{% else %}goes out tonight{% endif %} —
+    {{ trash.day }} {{ trash.date }}.
+    {% if trash.shifted %}<span class="shift">Holiday week: {{ trash.shift_reason }}.</span>{% endif %}
+    {% if trash.note %}<span class="sub">{{ trash.note }}</span>{% endif %}
+  </div>
+  {% endif %}
+
+  {# Now Playing next, above the status banner and the quick links: it answers "what
+     is happening in the house right now", which you want before being told what
+     wants attention. It removes itself entirely when nothing is on (see
+     build_panels), so it costs nothing when the house is quiet.
+     ⚠️ NOT inside the {% raw %}{% if trash %}{% endraw %} above — it was, briefly, which meant Now Playing
+     only rendered on collection days and silently vanished the rest of the week. #}
+  {% for p in panels if p.key == 'nowplaying' %}
+  <div class="grid grid-lead">{% include "_card.html" %}</div>
+  {% endfor %}
+
+  {% set s = overall.value %}
+  <div class="overall s-{{ s }}">
+    <div class="overall-line">
+      <span class="chip c-{{ s }}">{{ s }}</span>
+      <b>
+        {% if s == 'ok' %}Everything is reporting and within normal bounds.
+        {% elif s == 'warn' %}Some things want attention.
+        {% elif s == 'alert' %}Something is wrong right now.
+        {% else %}Parts of the house can't be seen — treat green tiles with suspicion.{% endif %}
+      </b>
+    </div>
+    {# Naming them saves scanning nine cards for the one that is amber. Each links to
+       its own card. #}
+    {% if attention %}
+    <ul class="attn">
+      {% for a in attention %}
+      <li class="a-{{ a.status }}">
+        <a href="#{{ a.key }}">{% if ICON.get(a.key) %}<span class="ico" aria-hidden="true">{{ ICON[a.key] }}</span> {% endif %}{{ a.title }}</a>
+        {% if a.why %}<span class="why">{{ a.why }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  {% if errors %}
+    <div class="err">
+      {% for src, msg in errors.items() %}
+        <div><b>{{ src }}</b> unreachable — {{ msg }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {# ================= BOOKMARKS ================= #}
+
+
+  {# Quick links. Sits between the status banner and the cards: the things you open,
+     above the things you read. Square tiles, two to a card-column. #}
+  {% if favourites %}
+  <nav class="favs" aria-label="Favourites">
+    {% for f in favourites %}
+    <a class="fav" href="{{ f.url }}" target="_blank" rel="noopener">
+      <img src="{{ f.icon }}" alt="" loading="lazy" referrerpolicy="no-referrer"
+           onerror="this.style.visibility='hidden'">
+      <span>{{ f.name }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+
+  <div class="grid">
+  {% for p in panels if p.key != 'nowplaying' %}
+  {% include "_card.html" %}
+  {% endfor %}
+
+  <section class="card" id="bookmarks">
+    <div class="bm-shell">
+      <div class="bm-head">
+        <h2><span class="ico" aria-hidden="true">🔖</span> Bookmarks
+          <span class="chip c-{{ 'ok' if bookmark_sync else 'unknown' }}">
+            {{ 'Nextcloud sync' if bookmark_sync else 'local only' }}
+          </span>
+        </h2>
+        <span class="bm-count">{{ bookmarks.values() | map('length') | sum }} in
+          {{ bookmarks | length }} collection{{ '' if bookmarks | length == 1 else 's' }}</span>
+      </div>
+
+    {% if bookmarks %}
+      {% for folder, items in bookmarks.items() %}
+      <div class="bm-folder">
+        <h3>{{ folder }} <span class="mono">{{ items | length }}</span></h3>
+        <div class="bm-list">
+          {% for b in items %}
+          <span class="bm">
+            <img class="bm-ico" src="{{ b.icon or '/favicon/' ~ (b.url | host) }}" alt="" loading="lazy"
+                 width="16" height="16">
+            <a href="{{ b.url }}" target="_blank" rel="noopener"
+               title="{{ b.title }} — {{ b.url }}">{{ b.title }}</a>
+            <form method="post" action="/bookmarks/{{ b.id }}/delete">
+              <button type="submit" title="Remove">×</button>
+            </form>
+          </span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="sub">No bookmarks yet — import a browser export below, or add one.</p>
+    {% endif %}
+
+    <details>
+      <div class="bm-head">Add or import</div>
+      <form class="inline" method="post" action="/bookmarks/add" style="margin-bottom:.6rem">
+        <input type="url" name="url" placeholder="https://…" required>
+        <input type="text" name="title" placeholder="Title">
+        <input type="text" name="folder" placeholder="Folder" style="flex:0 1 8rem">
+        <button class="go" type="submit">Add</button>
+      </form>
+      <form class="inline" method="post" action="/bookmarks/import" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".html,.htm" required>
+        <button class="go" type="submit">Import browser export</button>
+      </form>
+      <p class="sub" style="margin-top:.5rem">
+        Safari, Chrome, Firefox and Edge all export the same format, so one file works for any of them.
+        This is a one-time migration — for ongoing capture use the bookmarklet below.
+      </p>
+
+      <h3 style="margin:1rem 0 .3rem;font-size:.72rem;letter-spacing:.12em;
+                 text-transform:uppercase;color:var(--muted)">Save from any browser — no cloud</h3>
+      <p class="sub">Drag this to your bookmarks bar. It saves the page you're on straight to
+        this server; nothing goes near iCloud, and no token is stored in the bookmark.</p>
+      <p style="margin-top:.4rem">
+        <a class="bm" style="padding:.45rem .7rem;font-weight:600"
+           href="javascript:(function(){var u=encodeURIComponent(location.href),t=encodeURIComponent(document.title);window.open('https://sagamore.example.com/bookmarks/capture?url='+u+'&amp;title='+t+'&amp;tags=inbox','sagamore','width=380,height=190');})();"
+           onclick="alert('Drag this to your bookmarks bar rather than clicking it.');return false;"
+        >▸ Save to Sagamore</a>
+      </p>
+    </details>
+    </div>
+  </section>
+  </div>
+
+
+  <footer>
+    Sagamore · reads Home Assistant and the Proxmox API · a tile that says
+    <b>unknown</b> means the data itself is missing, not that the thing is fine.
+  </footer>
+</div>
+
+<script src="/static/app.js?v={{ asset_v }}"></script>
+</body>
+</html>
