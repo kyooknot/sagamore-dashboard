@@ -1,5 +1,11 @@
 # Sagamore — a state dashboard for a house.
 #
+# 🚧 UNVERIFIED: this image has never been built or run. It is derived from a
+# working systemd deployment and checked only for internal consistency — the
+# paths it COPY's exist, and docker-compose.yml is valid YAML. The most likely
+# failure is bind-mount ownership: see "If Docker fails" in the README.
+# Bug reports very welcome; they are the only way this gets verified.
+#
 # Build:  docker build -t sagamore .
 # Run:    docker compose up -d      (see docker-compose.yml)
 #

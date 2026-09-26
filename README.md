@@ -16,6 +16,11 @@ It reads Home Assistant, Proxmox, UniFi and a few optional sources, and renders
 server-side. No build step, no CDN, no JavaScript framework — it must render
 when the house has no internet.
 
+> ⚠️ **Read [Status](#status--what-is-tested-and-what-is-not) before you deploy.**
+> The application is well-exercised; the **Docker image has never been built**
+> and the **LXC installer has never been run**. Both are offered as a starting
+> point, not a guarantee.
+
 ---
 
 ## The one idea
@@ -143,6 +148,49 @@ Three deliberate refusals, all to stop the column crying wolf:
 
 Circuits without enough history say **learning** rather than inventing a normal
 they cannot yet know.
+
+---
+
+## Status — what is tested, and what is not
+
+This project's whole premise is refusing to render something unverified as if it
+were fine. Applying that to itself:
+
+### Verified
+
+| | |
+|---|---|
+| **The application logic** | **252 tests**, no network and no configuration needed. Panel builders are pure functions of collected data, so the branch you care about is probably covered |
+| **Running under systemd** | This is the path the code was extracted from — it has run continuously against real Home Assistant, Proxmox and UniFi instances for months |
+| **A fresh clone** | `git clone && pytest` runs green, verified from an anonymous clone of this repository |
+| **The YAML config layer** | 9 dedicated tests plus manual checks: precedence, list/bool/int rendering, and that malformed, missing and non-mapping files are silent no-ops rather than crashes |
+
+### Not verified
+
+| | |
+|---|---|
+| 🚧 **The Docker image** | **Never built, never run.** No `docker build`, no `docker compose up`, and the `HEALTHCHECK` command has never executed. What *was* checked: every path the `Dockerfile` copies exists, and `docker-compose.yml` is valid YAML |
+| 🚧 **The LXC installer** | `deploy/lxc/install.sh` passes `bash -n` and nothing more. It has **never been run end to end**, on a fresh container or otherwise, and has not been through shellcheck |
+| 🚧 **Bind-mount ownership** | The container runs as a non-root user (uid 10001). Whether your bind-mounted `./config` and `./data` are writable by it is reasoned about, not observed — see below |
+
+### If Docker fails, look here first
+
+In rough order of likelihood:
+
+1. **`./data` is not writable by uid 10001.** The image creates `/config` and
+   `/data` with the right owner, but a bind mount from the host replaces that
+   with the host directory's ownership. Symptom: a `PermissionError` on
+   `/data/sagamore.db` at startup. Fix: `sudo chown -R 10001:10001 ./data ./config`,
+   or add `user: "$(id -u):$(id -g)"` to the compose service.
+2. **The container cannot reach Home Assistant.** Bridge networking is usually
+   fine, but if HA is on another VLAN, confirm the *Docker host* can reach it —
+   the container inherits that reachability, not your laptop's.
+3. **`HEALTHCHECK` reports unhealthy while the page loads fine.** It polls
+   `/api/health`; if that endpoint moves or the port is remapped, the check
+   fails while the app is fine. It is a check on the check, not on your house.
+
+Please open an issue if you hit any of these — a report against a real Docker
+daemon is more useful than anything further I can assert from here.
 
 ---
 

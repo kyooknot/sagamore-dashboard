@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Install Sagamore into a Debian/Ubuntu LXC container (or any bare VM).
 #
+# 🚧 UNVERIFIED: this script has never been run end to end. It passes `bash -n`
+# and mirrors a working manual install, but it has not been executed on a fresh
+# container. Read it before piping it to a shell — which is good practice for
+# any curl|bash, and here it is the actual advice. Failures are expected to be
+# small (a package name, a path); please open an issue with the output.
+#
 #   curl -fsSL https://raw.githubusercontent.com/kyooknot/sagamore-dashboard/main/deploy/lxc/install.sh | bash
 # or, from a clone:
 #   sudo ./deploy/lxc/install.sh

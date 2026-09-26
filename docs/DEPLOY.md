@@ -5,6 +5,20 @@ All of them end up in the same place: a config file you edit, and a restart.
 
 Sagamore is an HTTP client with a SQLite file. One core and 512 MB is ample.
 
+> ## ⚠️ How much each of these has actually been run
+>
+> | Route | Status |
+> |---|---|
+> | **Bare systemd** (§3) | ✅ **The trodden path.** This is how the code has run in production for months |
+> | **Docker** (§1) | 🚧 **Never built or run.** The `Dockerfile` and `docker-compose.yml` are written from the systemd deployment and checked for internal consistency — paths exist, YAML parses — but no image has ever been built from them |
+> | **LXC installer** (§2) | 🚧 **Never executed.** `deploy/lxc/install.sh` passes `bash -n` and has not been run end to end, nor through shellcheck |
+>
+> The **application** is thoroughly tested (252 tests); it is the **packaging**
+> that is new and unproven. If you want the least surprising route today, use
+> bare systemd — §3 is four commands. If you try Docker or the installer, please
+> open an issue with what happened either way; a real report beats any further
+> assertion from someone who cannot run a Docker daemon.
+
 ---
 
 ## Configuration comes first
